@@ -322,7 +322,8 @@ with gr.Blocks(title="HR Document Assistant", theme="soft") as demo:
             "Brief the Disciplinary Actions.",
             "What are the health insurance benefits in the US?",
             "How about in Europe?",
-            "What's the difference in vacation days between regions?"
+            "What's the difference in vacation days between regions?",
+            "Who handles Set Up Email and Network Access?"
         ],
         submit_btn="Ask HR Question",
         retry_btn=None,
