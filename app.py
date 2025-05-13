@@ -10,13 +10,14 @@ import PyPDF2
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 # openai.api_key = ""
 openai_client = OpenAI(api_key=openai.api_key)
+
 
 class HrDocumentChatbot:
     def __init__(self):
@@ -28,6 +29,7 @@ class HrDocumentChatbot:
             'eu': 'Europe',
             'us': 'United States'
         }
+        self.conversation_history = []  # Track conversation history
 
     def ingest_documents(self, base_folder_path: str):
         """Process all HR documents in the structured folder"""
@@ -209,8 +211,8 @@ class HrDocumentChatbot:
         top_indices = np.argsort(similarities)[-top_k:][::-1]
         return [self.document_store[i] for i in top_indices]
 
-    def generate_response(self, query: str) -> str:
-        """Generate response using relevant chunks from all documents"""
+    def generate_response(self, query: str, history: List[Tuple[str, str]] = None) -> str:
+        """Generate response using relevant chunks from all documents and conversation history"""
         relevant_chunks = self.find_relevant_chunks(query)
 
         if not relevant_chunks:
@@ -233,29 +235,35 @@ class HrDocumentChatbot:
 
             context += f"{source_info}):\n{chunk['content']}\n\n"
 
-        # Create prompt for OpenAI
+        # Create prompt for OpenAI with conversation history
         messages = [
             {"role": "system", "content":
                 "You are an HR assistant for ChemNovus Incorporated. Answer questions using ONLY the provided documents. "
                 "Pay special attention to region-specific information (Global, US, Europe). "
                 "When information differs between regions, present it in a clear comparison format. "
                 "For global policies, indicate they apply worldwide. "
-                "Format responses with clear section headers and bullet points."},
-            {"role": "user", "content": f"{context}\n\nQuestion: {query}"}
+                "Format responses with clear section headers and bullet points."}
         ]
+
+        # Add conversation history if available
+        if history:
+            for user_msg, bot_msg in history:
+                messages.append({"role": "user", "content": user_msg})
+                messages.append({"role": "assistant", "content": bot_msg})
+
+        # Add current context and question
+        messages.append({"role": "user", "content": f"{context}\n\nQuestion: {query}"})
 
         # Get response from OpenAI
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            # Set to 0 for deterministic output:
-            # it will consistently produce the same output for the same input. This is useful in scenarios where
-            # accuracy and reliability are critical, such as answering factual questions or generating structured
-            # responses.
-            # Lower temperature for factual HR responses
             temperature=0.3,
-            max_tokens = 5000,  # Limit the response length
+            max_tokens=5000,
         )
+
+        # Update conversation history
+        self.conversation_history.append((query, response.choices[0].message.content))
 
         return response.choices[0].message.content
 
@@ -271,8 +279,11 @@ def process_folder(folder_path):
     return chatbot.ingest_documents(folder_path)
 
 
-def respond(message, history):
-    return chatbot.generate_response(message)
+def respond(message: str, history: List[Tuple[str, str]]):
+    """Handle chat responses with history"""
+    if history is None:
+        history = []
+    return chatbot.generate_response(message, history)
 
 
 # Auto-detect dataset folder
@@ -301,23 +312,39 @@ with gr.Blocks(title="HR Document Assistant", theme="soft") as demo:
             "Give me info about parental leave in the US.",
             "Give me info about parental leave.",
             "What onboarding tasks are, for Manager?",
-            "What onboarding tasks are, for New Hire?",
+            "What onboarding tasks are required for new hires?",
             "Show me the performance evaluation process.",
             "Show me the performance management cycle.",
             "Tell me more about goal setting and performance tracking.",
             "Tell me about health insurance benefits?",
             "What are the differences in health insurance between regions?",
             "List all global PTO policies.",
-            "Brief the Disciplinary Actions"
+            "Brief the Disciplinary Actions.",
+            "What are the health insurance benefits in the US?",
+            "How about in Europe?",
+            "What's the difference in vacation days between regions?"
         ],
         submit_btn="Ask HR Question",
         retry_btn=None,
-        undo_btn=None
+        undo_btn=None,
+        clear_btn="New Conversation"
     )
 
 
+    # Add clear conversation history button
+    def clear_history():
+        chatbot.conversation_history = []
+        return None
+
+
+    chatbot_interface.clear_btn.click(
+        fn=clear_history,
+        inputs=None,
+        outputs=None,
+        queue=False
+    )
+
 if __name__ == "__main__":
-    # Print folder structure expectations
     print("Expected folder structure:")
     print("dataset/")
     print("├── global/  # Global policies")
