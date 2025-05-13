@@ -8,10 +8,8 @@ from pptx import Presentation
 import PyPDF2
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
-import os
 from pathlib import Path
-from typing import List, Dict, Tuple
-import io
+from typing import List, Dict
 
 # Load environment variables
 load_dotenv()
@@ -315,7 +313,6 @@ with gr.Blocks(title="HR Document Assistant", theme="soft") as demo:
         retry_btn=None,
         undo_btn=None
     )
-
 
 
 if __name__ == "__main__":
