@@ -1,3 +1,4 @@
+import os
 import gradio as gr
 import openai
 import pandas as pd
@@ -13,8 +14,8 @@ from typing import List, Dict
 
 # Load environment variables
 load_dotenv()
-# openai.api_key = os.getenv("OPENAI_API_KEY")
-openai.api_key = "" #todo
+openai.api_key = os.getenv("OPENAI_API_KEY")
+# openai.api_key = ""
 openai_client = OpenAI(api_key=openai.api_key)
 
 class HrDocumentChatbot:
